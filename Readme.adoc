@@ -1,0 +1,5 @@
+ cp .\influxDS\build\libs\influxDS-all.jar c:\Jaspersoft\jasperreports-server-cp-8.0.0\apache-tomcat\webapps\jasperserver\WEB-INF\lib
+
+ scp influxDS\build\libs\influxDS-all.jar azureuser@jasper:
+
+ ./gradlew clean sJ

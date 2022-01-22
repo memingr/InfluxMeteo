@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.18.1.final using JasperReports Library version 6.18.1-9d75d1969e774d4f179fb3be8401e98a0e6d1611  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Temperature_Violations" columnCount="2" pageWidth="595" pageHeight="842" whenNoDataType="AllSectionsNoDetail" columnWidth="267" columnSpacing="20" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" isSummaryWithPageHeaderAndFooter="true" uuid="a86e06a3-48b5-4fa8-8a32-a13d371d8bc4">
+	<property name="template.engine" value="tabular_template"/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="One Empty Record"/>
+	<property name="com.jaspersoft.studio.property.dataset.dialog.DatasetDialog.sash.w1" value="434"/>
+	<property name="com.jaspersoft.studio.property.dataset.dialog.DatasetDialog.sash.w2" value="552"/>
+	<property name="com.jaspersoft.studio.report.description" value=""/>
+	<property name="ireport.jasperserver.url" value="https://reports.grimen.online/jasperserver/"/>
+	<property name="ireport.jasperserver.user" value="jasperadmin"/>
+	<property name="ireport.jasperserver.report.resource" value="/reports/Temperature_Violations_v2_files/main_jrxml"/>
+	<property name="ireport.jasperserver.reportUnit" value="/reports/Temperature_Violations_v2"/>
+	<style name="Title" forecolor="#4D7579" hTextAlign="Center" vTextAlign="Middle" fontName="Arial" fontSize="26" isBold="true"/>
+	<style name="SubTitle" forecolor="#666666" hTextAlign="Center" vTextAlign="Middle" fontName="Arial" fontSize="18"/>
+	<style name="Column header" forecolor="#666666" fontName="Arial" fontSize="12" isBold="true"/>
+	<style name="Table">
+		<box>
+			<pen lineWidth="1.0" lineColor="#000000"/>
+			<topPen lineWidth="1.0" lineColor="#000000"/>
+			<leftPen lineWidth="1.0" lineColor="#000000"/>
+			<bottomPen lineWidth="1.0" lineColor="#000000"/>
+			<rightPen lineWidth="1.0" lineColor="#000000"/>
+		</box>
+	</style>
+	<subDataset name="DS_Graph_Day" uuid="174a699f-2336-4cf8-a265-d7612a3a5769">
+		<property name="com.jaspersoft.studio.data.defaultdataadapter" value="One Empty Record"/>
+		<parameter name="dateFrom" class="java.util.Date"/>
+		<parameter name="dateTo" class="java.util.Date"/>
+		<parameter name="threshold" class="java.lang.Integer"/>
+		<queryString language="flux">
+			<![CDATA[import "math"
+
+rep = from(bucket: "l3")
+    |> range(start: $P{dateFrom}, stop: $P{dateTo})
+    |> filter(fn: (r) => r["_measurement"] == "REPORTS" and r["_field"] == "TEMPERATURE")
+    |> rename(columns: {_value: "REPORTED_TEMP"})
+
+teplota = from(bucket: "l3")
+    |> range(start: $P{dateFrom}, stop: $P{dateTo})
+    |> filter(fn: (r) => r["_measurement"] == "RAW_TEMPERATURE" and r["_field"] == "TT")
+
+union(tables: [teplota, rep])
+    |> group()
+    |> sort(columns: ["_time"])
+    |> fill(column: "REPORTED_TEMP", usePrevious: true)
+    |> fill(column: "_value", usePrevious: true)
+    |> filter(fn: (r) => exists r._value)
+    |> map(fn: (r) => ({r with WARNING: if math.abs(x: float(v: r.REPORTED_TEMP) - r._value) > 1 then true else false, X: 1}))
+    |> stateCount(fn: (r) => r.WARNING)
+    |> stateCount(fn: (r) => not r.WARNING, column: "OK")
+    |> filter(fn: (r) => r.stateCount == 1 or r.OK == 1)
+    |> cumulativeSum(columns: ["X"])
+    |> filter(fn: (r) => r.X > 1 or r.WARNING)
+    |> map(fn: (r) => ({r with ORDER: (r.X + r.stateCount) / 2}))
+    |> pivot(columnKey: ["WARNING"], rowKey: ["ORDER"], valueColumn: "_time")
+    |> map(fn: (r) => ({r with DURATION: (uint(v: r.false) - uint(v: r.true)) / uint(v: 1000000000)}))
+    |> filter(fn: (r) => r.DURATION >  $P{threshold})
+    |> duplicate(column: "true", as: "_time")
+    |> aggregateWindow(every: 1d, fn: sum, createEmpty: true, column: "DURATION")]]>
+		</queryString>
+		<field name="_value" class="java.lang.String"/>
+		<field name="_time" class="java.time.Instant"/>
+		<field name="DURATION" class="java.lang.Long"/>
+	</subDataset>
+	<parameter name="reportTitle" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["Temperature violations"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="dateFrom" class="java.util.Date">
+		<defaultValueExpression><![CDATA[java.sql.Date.valueOf(java.time.LocalDate.now().minusMonths(1).withDayOfMonth(1))]]></defaultValueExpression>
+	</parameter>
+	<parameter name="dateTo" class="java.util.Date">
+		<defaultValueExpression><![CDATA[java.sql.Date.valueOf(java.time.LocalDate.now().withDayOfMonth(1).minusDays(1))]]></defaultValueExpression>
+	</parameter>
+	<parameter name="threshold" class="java.lang.Integer">
+		<defaultValueExpression><![CDATA[120]]></defaultValueExpression>
+	</parameter>
+	<queryString language="flux">
+		<![CDATA[import "math"
+
+rep = from(bucket: "l3")
+    |> range(start: $P{dateFrom}, stop: $P{dateTo})
+    |> filter(fn: (r) => r["_measurement"] == "REPORTS" and r["_field"] == "TEMPERATURE")
+    |> rename(columns: {_value: "REPORTED_TEMP"})
+
+teplota = from(bucket: "l3")
+    |> range(start: $P{dateFrom}, stop: $P{dateTo})
+    |> filter(fn: (r) => r["_measurement"] == "RAW_TEMPERATURE" and r["_field"] == "TT")
+
+union(tables: [teplota, rep])
+    |> group()
+    |> sort(columns: ["_time"])
+    |> fill(column: "REPORTED_TEMP", usePrevious: true)
+    |> fill(column: "_value", usePrevious: true)
+    |> filter(fn: (r) => exists r._value)
+    |> map(fn: (r) => ({r with WARNING: if math.abs(x: float(v: r.REPORTED_TEMP) - r._value) > 1 then true else false, X: 1}))
+    |> stateCount(fn: (r) => r.WARNING)
+    |> stateCount(fn: (r) => not r.WARNING, column: "OK")
+    |> filter(fn: (r) => r.stateCount == 1 or r.OK == 1)
+    |> cumulativeSum(columns: ["X"])
+    |> filter(fn: (r) => r.X > 1 or r.WARNING)
+    |> map(fn: (r) => ({r with ORDER: (r.X + r.stateCount) / 2}))
+    |> pivot(columnKey: ["WARNING"], rowKey: ["ORDER"], valueColumn: "_time")
+    |> map(fn: (r) => ({r with DURATION: (uint(v: r.false) - uint(v: r.true)) / uint(v: 1000000000)}))
+    |> filter(fn: (r) => r.DURATION >  $P{threshold})]]>
+	</queryString>
+	<field name="_value" class="java.lang.String"/>
+	<field name="false" class="java.time.Instant"/>
+	<field name="true" class="java.time.Instant"/>
+	<field name="DURATION" class="java.lang.Long"/>
+	<title>
+		<band height="316" splitType="Stretch">
+			<textField>
+				<reportElement style="Title" x="0" y="0" width="554" height="30" uuid="ac0843ae-385c-46ac-ae90-3f613e1cd7fb"/>
+				<textFieldExpression><![CDATA[$P{reportTitle}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement style="SubTitle" x="0" y="30" width="554" height="30" uuid="b61a3726-5cef-4395-b200-1cd2c2b96235"/>
+				<textFieldExpression><![CDATA[DATEFORMAT($P{dateFrom},"d.M.yyyy") + " - " + DATEFORMAT($P{dateTo},"d.M.yyyy")]]></textFieldExpression>
+			</textField>
+			<barChart>
+				<chart isShowLegend="false" evaluationTime="Report">
+					<reportElement x="0" y="100" width="554" height="200" uuid="2c6aa974-a269-4641-9838-34d96ae8ad21"/>
+					<chartTitle/>
+					<chartSubtitle/>
+					<chartLegend/>
+				</chart>
+				<categoryDataset>
+					<dataset resetType="Report">
+						<datasetRun subDataset="DS_Graph_Day" uuid="7cff5ded-2e7c-41e5-9d0c-2252b2d8534a">
+							<datasetParameter name="dateFrom">
+								<datasetParameterExpression><![CDATA[$P{dateFrom}]]></datasetParameterExpression>
+							</datasetParameter>
+							<datasetParameter name="dateTo">
+								<datasetParameterExpression><![CDATA[$P{dateTo}]]></datasetParameterExpression>
+							</datasetParameter>
+							<datasetParameter name="threshold">
+								<datasetParameterExpression><![CDATA[$P{threshold}]]></datasetParameterExpression>
+							</datasetParameter>
+						</datasetRun>
+					</dataset>
+					<categorySeries>
+						<seriesExpression><![CDATA["SERIES 1"]]></seriesExpression>
+						<categoryExpression><![CDATA[DATEFORMAT(Date.from($F{_time}), "d")]]></categoryExpression>
+						<valueExpression><![CDATA[$F{DURATION} / 864]]></valueExpression>
+						<labelExpression><![CDATA["%"]]></labelExpression>
+					</categorySeries>
+				</categoryDataset>
+				<barPlot>
+					<plot labelRotation="90.0"/>
+					<itemLabel/>
+					<categoryAxisFormat labelRotation="90.0">
+						<axisFormat labelColor="#000000" tickLabelColor="#000000" axisLineColor="#000000">
+							<tickLabelFont>
+								<font size="9"/>
+							</tickLabelFont>
+						</axisFormat>
+					</categoryAxisFormat>
+					<valueAxisLabelExpression><![CDATA["%"]]></valueAxisLabelExpression>
+					<valueAxisFormat>
+						<axisFormat labelColor="#000000" tickLabelColor="#000000" axisLineColor="#000000"/>
+					</valueAxisFormat>
+				</barPlot>
+			</barChart>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="20">
+			<property name="com.jaspersoft.studio.layout"/>
+			<staticText>
+				<reportElement mode="Opaque" x="1" y="0" width="119" height="20" forecolor="#B0BDA2" backcolor="#4D7579" uuid="2411e642-d03f-4ce1-8052-823645a7d008">
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+				</reportElement>
+				<box padding="3">
+					<pen lineColor="#080808"/>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#080808"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#080808"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#080808"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#080808"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<text><![CDATA[Start violation]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="120" y="0" width="140" height="20" forecolor="#B0BDA2" backcolor="#4D7579" uuid="9b474d20-1456-4d0d-bdb4-e558410a2834"/>
+				<box padding="3">
+					<pen lineColor="#080808"/>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#080808"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#080808"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#080808"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#080808"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<text><![CDATA[Duration(s)]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="16">
+			<property name="com.jaspersoft.studio.layout" value="com.jaspersoft.studio.editor.layout.FreeLayout"/>
+			<textField>
+				<reportElement x="120" y="0" width="140" height="16" uuid="91f65e99-61b4-4916-b397-df725ba5bc5a">
+					<property name="com.jaspersoft.studio.unit.y" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.leftIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.rightIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+				</reportElement>
+				<box topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="6">
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{DURATION}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="1" y="0" width="119" height="16" uuid="4838d969-7ecb-44f5-9f19-8dc91048749c">
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.leftIndent" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<paragraph lineSpacingSize="1.0" leftIndent="3"/>
+				</textElement>
+				<textFieldExpression><![CDATA[DATEFORMAT(Date.from($F{true}),"d.M - H:mm:ss")]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<pageFooter>
+		<band height="87">
+			<rectangle>
+				<reportElement x="1" y="10" width="553" height="70" uuid="a32f350f-a464-4787-9e10-1d17cea8dea0">
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+				</reportElement>
+			</rectangle>
+			<textField>
+				<reportElement x="0" y="10" width="554" height="20" uuid="819dcc4b-523f-4e95-98c4-8164a47cd394"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$P{reportTitle}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="240" y="57" width="60" height="13" uuid="f28149b2-03f7-4909-8310-2b6dae06b74b"/>
+				<textFieldExpression><![CDATA["Page " + $V{PAGE_NUMBER} + " of "]]></textFieldExpression>
+			</textField>
+			<textField evaluationTime="Report">
+				<reportElement x="290" y="57" width="30" height="13" uuid="5d6c938d-291f-4052-aa16-34aa2a119777">
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textFieldExpression><![CDATA[" " + String.valueOf($V{PAGE_NUMBER})]]></textFieldExpression>
+			</textField>
+			<textField pattern="EEEEE dd MMMMM yyyy">
+				<reportElement x="420" y="57" width="134" height="13" uuid="74650d24-4bbd-4144-b8fb-944d22b18d26"/>
+				<textFieldExpression><![CDATA[new java.util.Date()]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="30" width="553" height="19" uuid="c17295a8-65c6-4f65-88ee-9ced42462e2b"/>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[DATEFORMAT($P{dateFrom},"d.M.yyyy") + " - " + DATEFORMAT($P{dateTo},"d.M.yyyy")]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageFooter>
+</jasperReport>

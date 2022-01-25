@@ -3,7 +3,7 @@ package processors
 import com.influxdb.annotations.Column
 import com.influxdb.annotations.Measurement
 import com.influxdb.client.domain.WritePrecision
-import com.influxdb.client.kotlin.InfluxDBClientKotlinFactory
+import com.influxdb.client.kotlin.WriteKotlinApi
 import com.influxdb.query.FluxRecord
 import getClient
 import kotlinx.coroutines.flow.collect
@@ -12,30 +12,17 @@ import kotlinx.coroutines.runBlocking
 import java.time.Instant
 import kotlin.math.abs
 
-
-@Measurement(name = "breach_temperature")
-data class BreachTemp(
-    @Column val state: String,
-    @Column(timestamp = true) val time: Instant
-)
-
 fun main() = runBlocking {
 
     val dateFrom = "2021-01-01T00:00:00.000Z"
     val dateTo = "2021-02-01T00:00:00.000Z"
-    val client = getClient()
-
-    val writeApi = client.getWriteKotlinApi()
 
     val lastMsg = CasTeplota()
     val lastTemp = CasTeplota()
-    var current: CasTeplota
-    var breachStart = Instant.MAX
-    var breachStop: Instant
     var breach = false
 
-    client.use {
-
+    getClient().use {
+        val writeApi = it.getWriteKotlinApi()
         it.getQueryKotlinApi().query(
             """option v = {timeRangeStart: $dateFrom, timeRangeStop: $dateTo}
                      from(bucket: "l3") 
@@ -46,41 +33,48 @@ fun main() = runBlocking {
                       |> sort(columns: ["_time"])"""
         )
             .consumeAsFlow()
-            .collect {
-                current = if (it.measurement == "REPORTS") {
-                    lastMsg.nastav(it)
-                } else {
-                    lastTemp.nastav(it)
+            .collect { record ->
+                when (record.measurement) {
+                    "REPORTS" -> lastMsg.nastav(record)
+                    else -> lastTemp.nastav(record)
                 }
-                if (abs(lastMsg.teplota - lastTemp.teplota) > 1 && lastMsg.teplota > Double.MIN_VALUE && lastTemp.teplota > Double.MIN_VALUE) {
+                if (abs(lastMsg.teplota - lastTemp.teplota) > 1 && lastMsg.cas != null && lastTemp.cas != null) {
                     if (!breach) {
-                        breachStart = current.cas
-                        writeApi.writeMeasurement(BreachTemp("WARN", it.time!!), WritePrecision.NS, "reports")
+                        saveResult(writeApi, record, breach)
                         breach = true
                     }
-                    println("msg: ${lastMsg.cas} - ${lastMsg.teplota} <-> ${lastTemp.cas} - ${lastTemp.teplota}")
+                    logMsg(lastMsg, lastTemp)
 
-                } else {
-                    if (breach) {
-                        breachStop = current.cas
-                        breach = false
-                        writeApi.writeMeasurement(BreachTemp("OK", it.time!!), WritePrecision.NS, "reports")
-                        println("msg: ${lastMsg.cas} - ${lastMsg.teplota} <-> ${lastTemp.cas} - ${lastTemp.teplota}")
-                        println("breach: $breachStart - $breachStop")
-                    }
+                } else if (breach) {
+                    saveResult(writeApi, record, breach)
+                    breach = false
+                    logMsg(lastMsg, lastTemp)
                 }
             }
     }
 }
 
+private fun logMsg(lastMsg: CasTeplota, lastTemp: CasTeplota) {
+    println("msg: ${lastMsg.cas} - ${lastMsg.teplota} <-> ${lastTemp.cas} - ${lastTemp.teplota}")
+}
+
+private suspend fun saveResult(writeApi: WriteKotlinApi, record: FluxRecord, res: Boolean) {
+    writeApi.writeMeasurement(BreachTemp(if (res) "OK" else "WARN", record.time!!), WritePrecision.NS, "reports")
+}
+
 class CasTeplota {
     var teplota = Double.MIN_VALUE
-    var cas = Instant.MIN
+    var cas: Instant? = null
 
-    fun nastav(fluxRecord: FluxRecord): CasTeplota {
+    fun nastav(fluxRecord: FluxRecord) {
         teplota = fluxRecord.value as Double
         cas = fluxRecord.time
-        return this
     }
 }
+
+@Measurement(name = "breach_temperature")
+data class BreachTemp(
+    @Column val state: String,
+    @Column(timestamp = true) val time: Instant
+)
 

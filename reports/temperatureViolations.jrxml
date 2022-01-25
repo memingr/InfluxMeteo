@@ -54,7 +54,8 @@
     <parameter name="threshold" class="java.lang.Integer">
         <defaultValueExpression><![CDATA[120]]></defaultValueExpression>
     </parameter>
-    <queryString language="flux">
+    <!-- tag::doc[] -->
+    <queryString language="flux">        
         <![CDATA[import "contrib/tomhollingworth/events"
   from(bucket: "reports")
  |> range(start: $P{dateFrom}, stop: $P{dateTo})
@@ -64,6 +65,7 @@
  |> filter(fn: (r) => (r._value == "WARN"))
 |> filter(fn: (r) => (r.duration > $P{threshold}))]]>
     </queryString>
+    <!-- end::doc[] -->
     <field name="_value" class="java.lang.String"/>
     <field name="_time" class="java.time.Instant"/>
     <field name="duration" class="java.lang.Long"/>

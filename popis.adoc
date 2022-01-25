@@ -1,0 +1,82 @@
+= Popis POC Meteo+Influx
+
+== Reporty
+
+Na adrese https://reports.grimen.online je nainstalovany Jasper Server s nakonfigurovaným připojením do Influx DB (na tom samém serveru)
+
+NOTE: Přihlášení je `jasperadmin/*******`
+
+Ve složce _reports_ jsou deployované dva reporty
+
+=== Temperature Violations
+
+https://reports.grimen.online/jasperserver/flow.html?_flowId=viewReportFlow&_flowId=viewReportFlow&ParentFolderUri=%2Freports&reportUnit=%2Freports%2FTemperature_Violations&standAlone=true[Přímy odkaz]
+
+Report využívá předzpracovaná data jednoduchým kotlin kódem
+
+[source,kotlin]
+----
+include::fileLoader\src\main\kotlin\processors\TeplotaProcesor.kt[tag=code]
+----
+
+Výsledná data jsou uložena v Influx Bucketu _reports_
+
+Do reportu jsou data načítána tímto dotazem
+[source,xml]
+----
+include::reports\temperatureViolations.jrxml[tag=doc]
+----
+
+NOTE: V DB jsou pouze data, která jsem měl k dispozici. Tzn report generuj třeba pro 10/2021
+
+Tento report má také nastaveno každodenní automatické generování a zasílání výsledného pdf na můj mail
+
+=== Temperature Violations v2
+
+https://reports.grimen.online/jasperserver/flow.html?_flowId=viewReportFlow&_flowId=viewReportFlow&ParentFolderUri=%2Freports&reportUnit=%2Freports%2FTemperature_Violations_v2&standAlone=true[Přímý odkaz]
+
+Report načítá data přímo z "RAW" dat nahraných do DB z metrik REPORTS a RAW_TEMPERATURE a zpravovává přímo dotazovacím jazykem
+
+[source,xml]
+----
+include::reports\temperatureViolations_V2.jrxml[tag=doc]
+----
+
+== InfluxDB
+DB s naimportovanými daty je přístupná na adrese https://influx.grimen.online/
+
+NOTE: Přihlášení `admin/********`
+
+V bucketu L3 jsou naloadované soubory:
+
+. ACT_WIND_RWY06
+. RAIN_METGARDEN
+. RAW_TEMPERATURE
+. REPORTS
+
+NOTE: Abys viděl nějaká data je potřeba vybrat správny date range
+
+Data jsou naloadována kotlin programem:
+
+[source,kotlin]
+----
+include::fileLoader\src\main\kotlin\Main.kt[tag=code]
+----
+
+[source,kotlin]
+----
+include::fileLoader\src\main\kotlin\functions.kt[tag=code]
+----
+
+== Grafana 
+
+Gafana je tady https://grafana.grimen.online/
+Je nakonfigurované připojení do Influx a nejaký jedndoduchý graf
+
+NOTE: Přihlášení `admin/********`
+
+== Posgres
+DB postgres využívám pouze jako repository pro reporty. PGadmin je k dispozici zde https://pgadmin.grimen.online/
+
+NOTE: Přihlášení je email
+

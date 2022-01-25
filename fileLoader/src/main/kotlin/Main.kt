@@ -1,5 +1,6 @@
 import com.influxdb.client.write.Point
 
+// tag::code[]
 suspend fun main(args: Array<String>) {
 
     val inDir = "C://Users/memingr/projects/Tomas/data"
@@ -26,6 +27,7 @@ suspend fun main(args: Array<String>) {
         processInputDir(it)
     }
 }
+// end::code[]
 
 class Radek {
     var timestamp: Number? = null

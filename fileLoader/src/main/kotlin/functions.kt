@@ -6,6 +6,8 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
+// tag::code[]
+
 fun readHeader(s: String) = s.split("\t").map { it.replace(" ", "\\ ").replace(",", "\\,").replace("=", "\\=") }
 
 
@@ -74,3 +76,4 @@ suspend fun convertHisFile(
         writeApi.writeRecords(it, WritePrecision.NS, "l3", "Letadlo")
     }
 }
+// end::code[]

@@ -12,6 +12,8 @@ import kotlinx.coroutines.runBlocking
 import java.time.Instant
 import kotlin.math.abs
 
+// tag::code[]
+
 fun main() = runBlocking {
 
     val dateFrom = "2021-01-01T00:00:00.000Z"
@@ -77,4 +79,4 @@ data class BreachTemp(
     @Column val state: String,
     @Column(timestamp = true) val time: Instant
 )
-
+// end::code[]
